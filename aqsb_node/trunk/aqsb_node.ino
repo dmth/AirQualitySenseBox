@@ -71,7 +71,7 @@ uint8_t mac[6]; //MAC Address of the AQ-Shield
 #define TARGETBEE 0 // The Address of the RFBee which should receive the Message, Broadcast
 
 //Arithmetic Mean of NUMCYCLES measurements is calculated and send away....
-#define NUMCYCLES 1 //15 Cycles followed by a 4 Second break ~> 60seconds
+#define NUMCYCLES 15 //15 Cycles followed by a 4 Second break ~> 60seconds
 byte cycles = 0;
 
 unsigned long no2 = 0;
