@@ -4,7 +4,8 @@
 
 #include <DHT22.h>
 #include <Wire.h>
-#include <EggBus.h>
+#include <EggBus.h> // This library has been extended to fit the 1.4 Shields!
+       //See Post: https://groups.google.com/d/msg/airqualityegg/1W1BYTyfhRU/uaRWM8m4w1oJ
 #include <TinyGPS.h>
 
 //sleeping
@@ -109,14 +110,14 @@ void loop()
 
   char msg[59]; //The message that is send away...
  
-  long lon=gps.GPS_INVALID_ANGLE, lat = gps.GPS_INVALID_ANGLE;
+  long lon=TinyGPS::GPS_INVALID_ANGLE, lat = TinyGPS::GPS_INVALID_ANGLE;
 
   unsigned long fixage;
   feedgps(200); //param is the time in ms how long the serial port shoul be read... 
   gps.get_position(&lat, &lon, &fixage);
-  if (fixage == gps.GPS_INVALID_AGE){
-    lon=gps.GPS_INVALID_ANGLE;
-    lat = gps.GPS_INVALID_ANGLE;
+  if (fixage == TinyGPS::GPS_INVALID_AGE){
+    lon = TinyGPS::GPS_INVALID_ANGLE;
+    lat = TinyGPS::GPS_INVALID_ANGLE;
   }
   
   eggBus.init();
@@ -129,8 +130,8 @@ void loop()
     
     for(uint8_t ii = 0; ii < numSensors; ii++){
 
-      if (strncmp(eggBus.getSensorType(ii), "CO", 2) == 0) co += eggBus.getSensorValue(ii);
-      else if(strncmp(eggBus.getSensorType(ii), "NO2", 3) == 0) no2 += eggBus.getSensorValue(ii);
+      if (strncmp(eggBus.getSensorType(ii), "CO", 2) == 0) co += eggBus.getSensorValueOneDotFour(ii)/1000; // difference in R0 calibration 750(1.4FW) vs 750000(1.5 FW)
+      else if(strncmp(eggBus.getSensorType(ii), "NO2", 3) == 0) no2 += eggBus.getSensorValueOneDotFour(ii);
     }
   }
   
