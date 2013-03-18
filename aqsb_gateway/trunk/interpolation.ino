@@ -89,27 +89,29 @@ float getSensorValue(uint8_t sensorIndex, uint32_t measurement){
   float i_scaler = getIndependentScaler(sensorIndex);
   uint32_t measured_value = measurement / egg_bus_sensor_r0[sensorIndex];
   
-  Serial.print("DEBUG: SENS"); Serial.println(sensorIndex);
-  Serial.print("DEBUG: MES"); Serial.println(measurement);
+  //Serial.print("DEBUG: SENS"); Serial.println(sensorIndex);
+  //Serial.print("DEBUG: MES"); Serial.println(measurement);
   
   float independent_variable_value = (i_scaler * measured_value);
   uint8_t xval, yval, row = 0;
   float real_table_value_x, real_table_value_y;
   float previous_real_table_value_x = 0.0, previous_real_table_value_y = 0.0;
   
-  Serial.print("DEBUG: IV "); Serial.println(independent_variable_value, 4);
+ // Serial.print("DEBUG: IV "); Serial.println(independent_variable_value, 4);
   
   while(getTableRow(sensorIndex, row++, &xval, &yval)){
     real_table_value_x = x_scaler * xval;
     real_table_value_y = y_scaler * yval;
     
+    /*
     Serial.print("DEBUG: ROW "); Serial.println(row);
     Serial.print("DEBUG: IV "); Serial.println(independent_variable_value, 4);
     Serial.print("DEBUG: W RTV-X "); Serial.println(real_table_value_x);
     Serial.print("DEBUG: W Prev RTV-X "); Serial.println(previous_real_table_value_x);
     Serial.print("DEBUG: W RTV-Y "); Serial.println(real_table_value_y);
+    */
     
-    if (sensorIndex == 1) {Serial.print("DEBUG: C3 Bool: ");Serial.println((real_table_value_x > independent_variable_value) && (independent_variable_value > previous_real_table_value_x));}
+    // Serial.print("DEBUG: C3 Bool: ");Serial.println((real_table_value_x > independent_variable_value) && (independent_variable_value > previous_real_table_value_x));
     
     // case 1: this row is an exact match, just return the table value for y
     if(real_table_value_x == independent_variable_value){
@@ -121,7 +123,7 @@ float getSensorValue(uint8_t sensorIndex, uint32_t measurement){
     // case 2: this is the first row and the independent variable is smaller than it
     // therefore extrapolation backward is required
     else if((row == 1) && (real_table_value_x > independent_variable_value)){
-      Serial.print("  DEBUG: C2 RTV "); Serial.println(real_table_value_x, 4);
+      //Serial.print("  DEBUG: C2 RTV "); Serial.println(real_table_value_x, 4);
       // look up the value in row 1 to calculate the slope to extrapolate
       previous_real_table_value_x = real_table_value_x;
       previous_real_table_value_y = real_table_value_y;
@@ -131,19 +133,19 @@ float getSensorValue(uint8_t sensorIndex, uint32_t measurement){
       real_table_value_y = y_scaler * yval;
       
       slope = (real_table_value_y - previous_real_table_value_y) / (real_table_value_x - previous_real_table_value_x);
-      Serial.print("DEBUG: "); Serial.println("EOM");
+      //Serial.print("DEBUG: "); Serial.println("EOM");
       return previous_real_table_value_y - slope * (previous_real_table_value_x - independent_variable_value);
     }
     
     // case 3: the independent variable is between the current row and the previous row
     // interpolation is required  
     else if((row > 1) && (real_table_value_x > independent_variable_value) && (independent_variable_value > previous_real_table_value_x)){
-      Serial.print("  DEBUG: C3 RTV "); Serial.println(real_table_value_x, 4);
+      //Serial.print("  DEBUG: C3 RTV "); Serial.println(real_table_value_x, 4);
 
       // interpolate between the two values
       slope = (real_table_value_y - previous_real_table_value_y) / (real_table_value_x - previous_real_table_value_x);
       
-      Serial.print("DEBUG: "); Serial.println("EOM");
+      //Serial.print("DEBUG: "); Serial.println("EOM");
       return previous_real_table_value_y + (independent_variable_value - previous_real_table_value_x) * slope;
     }
     
@@ -155,10 +157,10 @@ float getSensorValue(uint8_t sensorIndex, uint32_t measurement){
   // case 4: the independent variable is greater than the largest value in the table, so we need to extrapolate forward
   // if you got through the entire table without an early return that means the independent_variable_value
   // the last values stored should be used for the slope calculation
-  Serial.print("  DEBUG: C4 RTV "); Serial.println(real_table_value_x, 4);
+  //Serial.print("  DEBUG: C4 RTV "); Serial.println(real_table_value_x, 4);
 
   slope = (real_table_value_y - previous_real_table_value_y) / (real_table_value_x - previous_real_table_value_x);
-  Serial.print("DEBUG: "); Serial.println("EOM");
+  //Serial.print("DEBUG: "); Serial.println("EOM");
   return real_table_value_y + slope * (independent_variable_value - real_table_value_x);
 }
 
