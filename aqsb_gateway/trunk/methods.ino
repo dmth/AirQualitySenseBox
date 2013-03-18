@@ -164,21 +164,66 @@ bool getTableRow(uint8_t sensorIndex, uint8_t row_number, uint8_t * xval, uint8_
   return (*xval != INTERPOLATION_TERMINATOR && *yval != INTERPOLATION_TERMINATOR);
 }
 
+// Write MSG to the Device's logfile
+int writeFile(char hash[9], String msg){
+  if (!SD.exists(hash)){
+    SD.mkdir(hash);
+  }
+  char path[18];
+  strcpy(path, hash);
+  strcat(path, "/data.log");
+   Serial.print("File: ");
+   Serial.print(path);
 
-int writeFile(struct message msg){
-  char* filename = "msgdata.txt";
-  file = SD.open(filename, FILE_WRITE);
+  file = SD.open(path, FILE_WRITE);
 
   if (file){
-    file.println(jsonCosm(msg));
+    file.println(msg);
     file.close();
-    
-    Serial.println(jsonCosm(msg));
-   
+    Serial.println("... written");
+    //Serial.println(msg);
     return 0;
   }
   return -1;
 }
+
+// Write MSG to the Device's logfile
+// key is a char* , len is the length of that array
+int retrieveAPIKey(char hash[9], char* key, int len){
+  
+  // Check if folder for this device exists, if not return -1
+  if (!SD.exists(hash)){
+    SD.mkdir(hash);
+    return -1;
+  }
+  
+  char path[18];
+  strcpy(path, hash);
+  strcat(path, "/api.key");
+   Serial.print("File: ");
+   Serial.print(path);
+
+  file = SD.open(path, FILE_READ);
+
+  if (file){
+    char ckey[len+1];
+    int i = 0;
+    while(file.available()){
+      if (i<len) ckey[i++] = file.read();
+      else break;
+    }
+    file.close();
+
+    strcpy(key, ckey);
+    Serial.print("... read: ");
+    //Serial.write(ckey);
+    
+    return 0;
+  }
+  return -1;
+}
+
+
 
 /*
   Split the Message.

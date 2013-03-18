@@ -37,6 +37,11 @@
   #define SD_CS 4 // mega | iboard pro
   #define SS_PIN 53 //mega | iboard pro
   
+  //hashing
+  #include <HashMap.h>
+  //define the max size of the hashtable
+  const byte HASH_SIZE = 8; 
+  
 #endif
 
 #define RCVLED A2 //RCV LED
@@ -61,15 +66,45 @@ struct message{
 
 //some prototypes to prevent "foo was not declared in this scope"
 struct message splitMessage(String c_msg);
-int writeFile(struct message msg);
+int writeFile(char hash[9], String msg);
 float getTableXScaler(uint8_t sensorIndex);
 float getTableYScaler(uint8_t sensorIndex);
 float getIndependentScaler(uint8_t sensorIndex);
 bool getTableRow(uint8_t sensorIndex, uint8_t row_number, uint8_t * xval, uint8_t *yval);
 String jsonCosm(struct message msg);
-int getLength(char* c);
-void sendData(struct message msg);
+int sendData(String smsg, char* key);
 void buildID(char id[20], char mac[13], char* name, int len);
+int retrieveAPIKey(char hash[9], char* key, int len);
+
+
+// CRC HASHING
+#if BOARDTYPE==2
+static PROGMEM prog_uint32_t crc_table[16] = {
+    0x00000000, 0x1db71064, 0x3b6e20c8, 0x26d930ac,
+    0x76dc4190, 0x6b6b51f4, 0x4db26158, 0x5005713c,
+    0xedb88320, 0xf00f9344, 0xd6d6a3e8, 0xcb61b38c,
+    0x9b64c2b0, 0x86d3d2d4, 0xa00ae278, 0xbdbdf21c
+};
+
+unsigned long crc_update(unsigned long crc, byte data)
+{
+    byte tbl_idx;
+    tbl_idx = crc ^ (data >> (0 * 4));
+    crc = pgm_read_dword_near(crc_table + (tbl_idx & 0x0f)) ^ (crc >> 4);
+    tbl_idx = crc ^ (data >> (1 * 4));
+    crc = pgm_read_dword_near(crc_table + (tbl_idx & 0x0f)) ^ (crc >> 4);
+    return crc;
+}
+
+unsigned long crc_string(char *s)
+{
+  unsigned long crc = ~0L;
+  while (*s)
+    crc = crc_update(crc, *s++);
+  crc = ~crc;
+  return crc;
+}
+#endif
 
 
 //SD-Card Stuff
@@ -174,6 +209,9 @@ boolean r = false;
     struct message s_msg;
     s_msg = splitMessage(c_msg);//Split the msg!
     
+    char hash[9];
+     sprintf(hash, "%08lx", crc_string(s_msg.mac));
+    
     #if BOARDTYPE==2
       Serial.println();
       
@@ -182,6 +220,9 @@ boolean r = false;
       else if (!strcmp(s_msg.mac, "0004A303D52F")) Serial.println("Unit 03");
       else if (!strcmp(s_msg.mac, "0004A39FABD3")) Serial.println("Unit 04");
       else                                         Serial.println("Unit N/A");
+      
+      Serial.print("  Hash: ");
+      Serial.println(hash);
       
       Serial.print("  mac: ");
       Serial.println(s_msg.mac);
@@ -201,36 +242,24 @@ boolean r = false;
       Serial.println(s_msg.bat);
       Serial.println("----");
       
-    #endif
-    //if (!sderror) writeFile(s_msg);
-   
-    sendData(s_msg);
+    #endif 
+    
+    String smsg = jsonCosm(s_msg);
+
+    char key[60];
+    
+    if (!sderror) writeFile(hash, smsg);
+    retrieveAPIKey(hash, key, 60);
+    
+    Serial.println(key);
+    
+    sendData(smsg, key);
    
     //Serial.println(freeRam());
     digitalWrite(RCVLED, LOW);
   }
 }
 
-
-// This method calculates the number of digits in the
-// sensor reading.  Since each digit of the ASCII decimal
-// representation is a byte, the number of digits equals
-// the number of bytes:
-
-int getLength(int someValue) {
-  // there's at least one byte:
-  int digits = 1;
-  // continually divide the value by ten,
-  // adding one to the digit count for each
-  // time you divide, until you're at 0:
-  int dividend = someValue /10;
-  while (dividend > 0) {
-    dividend = dividend /10;
-    digits++;
-  }
-  // return the number of digits:
-  return digits;
-}
 
 String jsonCosm(struct message msg){
   String s;
@@ -318,14 +347,12 @@ void buildID(char id[20], char mac[13], char* name, int len){
 
 
 // this method makes a HTTP connection to the server:
-void sendData(struct message msg) {
+// returns 1 if succesful
+int sendData(String smsg, char* key) {
   // if there's a successful connection:
   if (client.connect(server, 80)) {
     Serial.println("connecting...");
-    
-    String smsg = jsonCosm(msg);
-    //Serial.println(smsg);
-    
+
     // send the HTTP PUT request:
     client.print("PUT /v2/feeds/");
     Serial.print("PUT /v2/feeds/");
@@ -337,10 +364,10 @@ void sendData(struct message msg) {
     Serial.print("Host: ");
     client.println(server);
     Serial.println(server);
-    client.print("X-ApiKey: ");
-    Serial.print("X-ApiKey: ");
-    client.println(API_KEY);
-    Serial.println(API_KEY);
+    //client.print("X-ApiKey: ");
+    //Serial.print("X-ApiKey: ");
+    client.println(key);
+    Serial.println(key);
     client.print("Content-Length: ");
     Serial.print("Content-Length: ");
     client.println(smsg.length());
@@ -359,8 +386,10 @@ void sendData(struct message msg) {
     // here's the actual content of the PUT request:
     client.println(smsg);
     Serial.println(smsg);
-
- 
+    
+    client.stop();
+    
+    return 1;
   }
   else {
     // if you couldn't make a connection:
@@ -368,6 +397,8 @@ void sendData(struct message msg) {
     Serial.println();
     Serial.println("disconnecting.");
     client.stop();
+    
+    return 0;
   }
 }
 
