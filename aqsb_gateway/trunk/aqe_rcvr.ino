@@ -4,6 +4,9 @@
 //#include <aJSON.h> //added support for long
 #include <avr/wdt.h>
 
+//Time
+#include <Time.h>
+
 // Switch through different board-setups
 #if (defined (__AVR_ATmega2560__))
   #define BOARDTYPE 2 //2: IBOARD PRO
@@ -25,22 +28,26 @@
 #elif BOARDTYPE==2 //IBOARD PRO
 
   #include <Ethernet.h>
+  #include <EthernetUdp.h>
   #include <Flash.h>
-  byte mac[] = { 0x90, 0xA2, 0xDA, 0x00, 0x62, 0xE0 };
+  byte mac[] = {0x90, 0xA2, 0xDA, 0x00, 0x62, 0xE1};
   byte ip[] = { 10, 64, 1, 20 };
   byte gateway[] = {10,64,1,10};
   byte subnet[] = {255,255,255,0};
-  char server[] = "api.cosm.com";
+  
+  
+  IPAddress SNTP_server_IP(192,53,103,108); //ptbtime1
+  //IPAddress SNTP_server_IP(10,64,1,10);
+  const long timeZoneOffset = 0L; // set this to the offset in seconds to your local time;
+  const int NTP_PACKET_SIZE= 48; // NTP time stamp is in the first 48 bytes of the message
+  byte packetBuffer[ NTP_PACKET_SIZE]; //buffer to hold incoming and outgoing packets 
   
   EthernetClient client;
-  
+  EthernetUDP Udp;
+  unsigned int localPort = 8888;      // local port to listen for UDP packets
+
   #define SD_CS 4 // mega | iboard pro
   #define SS_PIN 53 //mega | iboard pro
-  
-  //hashing
-  #include <HashMap.h>
-  //define the max size of the hashtable
-  const byte HASH_SIZE = 8; 
   
 #endif
 
@@ -48,7 +55,9 @@
 
 #define DTALEN 58 //Length of a message
 
-//Thats what insid a message
+/* Structure Message:
+    When a message is received, it can be splitted into this very structure.
+ */
 struct message{
   char mac[13];//, lat[10], lon[10];
   long lat, lon;
@@ -59,9 +68,10 @@ struct message{
 };
 
 
-//cosm
-#define API_KEY "ROL5z8eBL0em_uvk4KresZe1y5KSAKxJajJPRVFRa3hZVT0g" // your Cosm API key
-#define FEED_ID 102432 // your Cosm feed ID
+
+
+#define cosm 1
+//#define sos 1
 
 
 //some prototypes to prevent "foo was not declared in this scope"
@@ -71,10 +81,28 @@ float getTableXScaler(uint8_t sensorIndex);
 float getTableYScaler(uint8_t sensorIndex);
 float getIndependentScaler(uint8_t sensorIndex);
 bool getTableRow(uint8_t sensorIndex, uint8_t row_number, uint8_t * xval, uint8_t *yval);
-String jsonCosm(struct message msg);
-int sendData(String smsg, char* key);
 void buildID(char id[20], char mac[13], char* name, int len);
-int retrieveAPIKey(char hash[9], char* key, int len);
+
+//Time Prototypes
+String timeAsISO(time_t time);
+String timeAsISO();
+String timeAsString(time_t time);
+String timeAsString();
+unsigned long getNtpTime();
+unsigned long sendNTPpacket(IPAddress& address);
+
+
+#ifdef cosm
+  int retrieveAPIKey(char hash[9], char* key, int len);
+  int retrieveFeedId(char hash[9], long* feedid);
+  int sendDataToCosm(String smsg, char* key, long feedID);
+  String jsonCosm(struct message msg);
+#endif
+
+#ifdef sos
+
+#endif
+
 
 
 // CRC HASHING
@@ -125,6 +153,7 @@ void setup(){
     Serial3.begin(9600);
     
     Serial << F("Starting Network.\n");
+    Serial << F("Free Ram: ") << FreeRam() << F("\n");
       //Begin Ethernet, try DHCP first
       if (Ethernet.begin(mac) == 0) {
         Serial << F(">>!!>> Failed to configure Ethernet using DHCP\n");
@@ -139,6 +168,20 @@ void setup(){
           Serial.print(Ethernet.localIP()[thisByte], DEC);
           Serial << F(".");
       }
+    Serial.println();
+    
+    Udp.begin(localPort);
+    
+    setSyncProvider(getNtpTime);
+    while(timeStatus()== timeNotSet)
+      {
+         delay(1000);
+         Serial << F(">>!!>> Retrying to connect to NTP\n");
+         setSyncProvider(getNtpTime); // wait until the time is set by the sync provider
+      }
+    Serial.print(">>>> Time Position: ");
+    Serial.println(timeAsISO());
+  
     Serial.println();
   }
   #endif
@@ -205,7 +248,7 @@ boolean r = false;
   if (newdata){
     digitalWrite(RCVLED, HIGH);
     //Serial.println(c_msg);
-    
+        
     struct message s_msg;
     s_msg = splitMessage(c_msg);//Split the msg!
     
@@ -213,13 +256,17 @@ boolean r = false;
      sprintf(hash, "%08lx", crc_string(s_msg.mac));
     
     #if BOARDTYPE==2
-      Serial.println();
-      
+    
+      Serial.println F("--- New Dataset ---");
       if      (!strcmp(s_msg.mac, "0004A39FEFFC")) Serial.println("Unit 01");
       else if (!strcmp(s_msg.mac, "0004A303D1F4")) Serial.println("Unit 02");
       else if (!strcmp(s_msg.mac, "0004A303D52F")) Serial.println("Unit 03");
       else if (!strcmp(s_msg.mac, "0004A39FABD3")) Serial.println("Unit 04");
       else                                         Serial.println("Unit N/A");
+      
+      //Serial.println();
+      //Serial.println(c_msg);
+      //Serial.println();
       
       Serial.print("  Hash: ");
       Serial.println(hash);
@@ -240,165 +287,33 @@ boolean r = false;
       Serial.println((float)s_msg.hum/10);
       Serial.print("  bat: ");
       Serial.println(s_msg.bat);
-      Serial.println("----");
-      
-    #endif 
-    
-    String smsg = jsonCosm(s_msg);
 
-    char key[60];
     
-    if (!sderror) writeFile(hash, smsg);
-    retrieveAPIKey(hash, key, 60);
+
     
-    Serial.println(key);
-    
-    sendData(smsg, key);
-   
-    //Serial.println(freeRam());
+    #ifdef cosm
+      String smsg = jsonCosm(s_msg);
+
+      char key[60];
+      long feedID = 0;
+      
+      //if (!sderror) writeFile(hash, smsg);
+      
+      retrieveAPIKey(hash, key, 60);
+      //Serial.println(key);
+      
+      retrieveFeedId(hash, &feedID);
+      //Serial.println(feedID);
+      
+      sendDataToCosm(smsg, key, feedID);
+    #endif
+    Serial.println F("--- --- --- --- ---");
+    #endif
+
     digitalWrite(RCVLED, LOW);
   }
 }
 
 
-String jsonCosm(struct message msg){
-  String s;
-  char id[20];
-  char buf[10];
-  
-  s += "{"; //start
-    s += "\"location\": {";
-      s += "\"disposition\" : \"mobile\",";
-      s += "\"lat\" :";
-      dtostrf((float)msg.lat/(float)100000,9,5,buf);
-      s += buf; s+= ",";
-      s += "\"lon\" :";
-      dtostrf((float)msg.lon/(float)100000,9,5,buf);
-      s += buf; s+= ",";
-      s += "\"domain\" : \"physical\"";
-    s += "}"; //end of location
-    s += ",";
-    s += "\"datastreams\" : ["; //beginning datastreams array
-    
-      s += "{"; //Begin Battery
-        s += "\"current_value\" : "; 
-        s += msg.bat;
-        s += ",";
-        buildID(id, msg.mac, "BAT", 3);
-        s += "\"id\" : ";
-        s += "\""; s+= id ; s+="\"";
-      s += "},";
-      
-      s += "{"; //begin NO2
-        s += "\"current_value\" : "; 
-        s += msg.no2;
-        s += ",";
-        buildID(id, msg.mac, "NO2", 3);
-        s += "\"id\" : ";
-        s += "\""; s+= id ; s+="\"";
-      s += "},";
-      
-      s += "{"; //begin CO
-        s += "\"current_value\" : "; 
-        s += msg.co;
-        s += ",";
-        buildID(id, msg.mac, "CO", 2);
-        s += "\"id\" : ";
-        s += "\""; s+= id ; s+="\"";
-      s += "},";
-      
-      s += "{"; //begin Temp
-        s += "\"current_value\" : ";
-        dtostrf((float)msg.tem/10,4,1,buf);
-        s += buf; s += ",";
-        buildID(id, msg.mac, "TEMP", 4);
-        s += "\"id\" : ";
-        s += "\""; s+= id ; s+="\"";
-      s += "},";
-      
-      s += "{"; //begin hum
-        s += "\"current_value\" : ";
-        dtostrf((float)msg.hum/10,4,1,buf);
-        s += buf; s += ",";
-        buildID(id, msg.mac, "RH", 2);
-        s += "\"id\" : ";
-        s += "\""; s+= id ; s+="\"";
-      s += "}";
-    s += "]"; //end of datastreams array
-  s += "}"; //end
-  
-  return s;
-}
 
-//merge mac and name to ID
-void buildID(char id[20], char mac[13], char* name, int len){
- for(int i = 0; i<20; i++)id[i] = '\0';
- for(int i = 0; i<12; i++){
-   id[i] =  mac[i];
- } 
- id[12] = '_';
- id[13] = '-';
- id[14] = '_';
- for(int i=15; (i<15+len & i < 20) ;i++){
-  id[i] =  name[i-15];
- }
-}
-
-
-
-// this method makes a HTTP connection to the server:
-// returns 1 if succesful
-int sendData(String smsg, char* key) {
-  // if there's a successful connection:
-  if (client.connect(server, 80)) {
-    Serial.println("connecting...");
-
-    // send the HTTP PUT request:
-    client.print("PUT /v2/feeds/");
-    Serial.print("PUT /v2/feeds/");
-    client.print(FEED_ID);
-    Serial.print(FEED_ID);
-    client.println(".json HTTP/1.1");
-    Serial.println(".json HTTP/1.1");
-    client.print("Host: ");
-    Serial.print("Host: ");
-    client.println(server);
-    Serial.println(server);
-    //client.print("X-ApiKey: ");
-    //Serial.print("X-ApiKey: ");
-    client.println(key);
-    Serial.println(key);
-    client.print("Content-Length: ");
-    Serial.print("Content-Length: ");
-    client.println(smsg.length());
-    Serial.println(smsg.length());
-
-    
-    // last pieces of the HTTP PUT request:
-    client.println("Content-Type: text/json");
-    Serial.println("Content-Type: text/json");
-    client.println("Connection: close");
-    Serial.println("Connection: close");
-
-    client.println();
-    Serial.println();
-
-    // here's the actual content of the PUT request:
-    client.println(smsg);
-    Serial.println(smsg);
-    
-    client.stop();
-    
-    return 1;
-  }
-  else {
-    // if you couldn't make a connection:
-    Serial.println("connection failed");
-    Serial.println();
-    Serial.println("disconnecting.");
-    client.stop();
-    
-    return 0;
-  }
-}
 
