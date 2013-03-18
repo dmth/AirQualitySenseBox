@@ -30,7 +30,18 @@
   #include <Ethernet.h>
   #include <EthernetUdp.h>
   #include <Flash.h>
-  byte mac[] = {0x90, 0xA2, 0xDA, 0x00, 0x62, 0xE1};
+  
+  /* "Local" MAC-Adresses Are in the range:
+    x2-xx-xx-xx-xx-xx
+    x6-xx-xx-xx-xx-xx
+    xA-xx-xx-xx-xx-xx
+    xE-xx-xx-xx-xx-xx
+    
+    of course we take sth starting with 52:
+    52-DD-CC-BB-AA-XX
+  */
+  //byte mac[] = {0x52, 0xDD, 0xCC, 0xBB, 0xAA, 0x01};
+  byte mac[] = {0x52, 0xDD, 0xCC, 0xBB, 0xAA, 0x02};
   byte ip[] = { 10, 64, 1, 20 };
   byte gateway[] = {10,64,1,10};
   byte subnet[] = {255,255,255,0};
@@ -133,17 +144,23 @@ unsigned long crc_string(char *s)
   return crc;
 }
 #endif
-
+  
+  
+  //Watchdog Timer Related
+  
+  volatile boolean f_wdt=1;
+  // Watchdog Interrupt Service / is executed when  watchdog timed out
+  ISR(WDT_vect) {
+    f_wdt=1;  // set global flag
+  }
 
 //SD-Card Stuff
 File file;
 boolean sderror = false;
 
-void setup(){
-  
+void setup(){  
   Serial.begin(38400);
   
- 
   #if BOARDTYPE==1
     pinMode(rxPin, INPUT);
     pinMode(txPin, OUTPUT);
@@ -214,16 +231,14 @@ void setup(){
 
 void loop(){
   
-  wdt_enable(WDTO_8S); //enable Watchdog. The System has 8 Seconds to complete the loop. If this can't be achieved, the device restarts....
-  //if (f_wdt == 1) f_wdt = 0; 
+  wdt_enable(WDTO_4S); //enable Watchdog. The System has 4 Seconds to complete the loop. If this can't be achieved, the device restarts....
+  if (f_wdt == 1) f_wdt = 0;
   
   boolean newdata = false; //If true, a new message has been received
 
   unsigned int c;
   char c_msg[DTALEN+1];
 
-boolean r = false;
-  
   #if BOARDTYPE==1
     while (myserial.available() && c < DTALEN){
       byte k = myserial.read();
@@ -241,8 +256,7 @@ boolean r = false;
       }
         
       if (c == DTALEN && k=='!') newdata = true; //c = 55
-      r = true;
-      //delay(1);
+      delay(1);
     }
   #endif
    
@@ -250,6 +264,9 @@ boolean r = false;
 
 
   if (newdata){
+    
+    wdt_reset(); // Reset the WD Timer
+        
     digitalWrite(RCVLED, HIGH);
     //Serial.println(c_msg);
         
@@ -293,24 +310,23 @@ boolean r = false;
       Serial.println(s_msg.bat);
 
     
+      #ifdef cosm
+        String smsg = jsonCosm(s_msg);
+  
+        char key[60];
+        long feedID = 0;
 
+        //if (!sderror) writeFile(hash, smsg);
+
+        retrieveAPIKey(hash, key, 60);
+        //Serial.println(key);
+        
+        retrieveFeedId(hash, &feedID);
+        //Serial.println(feedID);
+        
+        sendDataToCosm(smsg, key, feedID);
+      #endif
     
-    #ifdef cosm
-      String smsg = jsonCosm(s_msg);
-
-      char key[60];
-      long feedID = 0;
-      
-      //if (!sderror) writeFile(hash, smsg);
-      
-      retrieveAPIKey(hash, key, 60);
-      //Serial.println(key);
-      
-      retrieveFeedId(hash, &feedID);
-      //Serial.println(feedID);
-      
-      sendDataToCosm(smsg, key, feedID);
-    #endif
     Serial.println F("--- --- --- --- ---");
     #endif
 
