@@ -115,8 +115,8 @@ float getSensorValue(uint8_t sensorIndex, uint32_t measurement){
     
     // case 1: this row is an exact match, just return the table value for y
     if(real_table_value_x == independent_variable_value){
-      if (sensorIndex == 1) { Serial.print("  DEBUG: C1 RTV "); Serial.println(real_table_value_x, 4);}
-      Serial.print("DEBUG: "); Serial.println("EOM");
+      //Serial.print("  DEBUG: C1 RTV "); Serial.println(real_table_value_x, 4);
+      //Serial.print("DEBUG: "); Serial.println("EOM");
       return real_table_value_y;
     }
     
@@ -190,10 +190,10 @@ gets the requested table row (table_index) for the requested sensor
 */
 //return false if xval | yval == 0xff
 bool getTableRow(uint8_t sensorIndex, uint8_t row_number, uint8_t * xval, uint8_t *yval){
-  if (sensorIndex == 1) { Serial.print("    DEBUG: GTR "); Serial.println(row_number);} 
+  // Serial.print("    DEBUG: GTR "); Serial.println(row_number);
   *xval = getTableValue(sensorIndex, row_number, 0);
   *yval = getTableValue(sensorIndex, row_number, 1);
-  if (sensorIndex == 1) { Serial.print("    DEBUG: GTR BOOL");Serial.println(*xval != INTERPOLATION_TERMINATOR && *yval != INTERPOLATION_TERMINATOR);}
+  // Serial.print("    DEBUG: GTR BOOL");Serial.println(*xval != INTERPOLATION_TERMINATOR && *yval != INTERPOLATION_TERMINATOR);
   return (*xval != INTERPOLATION_TERMINATOR && *yval != INTERPOLATION_TERMINATOR);
 }
 

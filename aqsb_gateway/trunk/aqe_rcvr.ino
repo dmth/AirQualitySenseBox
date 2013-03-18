@@ -7,7 +7,7 @@
 #define SS_PIN 53
 
 
-#include <aJSON.h>
+#include <aJSON.h> //added support for long
 
 File file;
 
@@ -16,10 +16,10 @@ File file;
 #define DTALEN 55 //Length of a message
 
 struct message{
-  char mac[13], lat[10], lon[10];
-  //long lat, lon;
-  float co, no2;
-  unsigned long test;
+  char mac[13];//, lat[10], lon[10];
+  long lat, lon;
+  //float co, no2;
+  long co, no2;
   short int hum, tem;
 };
 
@@ -61,7 +61,7 @@ void loop(){
 
   //Messages send by Outdoor units look like this:
   /*
-  12          |1|    9    | 9       |4   |  4 | 8      | 8      |  = 55
+   12          |1|    9    | 9       |4   |  4 | 8      | 8      |  = 55
    MAC         |:|  LAT    | LON     |HUM |TEM | NO2    | CO     |
    ------------|:|---------|---------|----|----|--------|--------|
    000000000011|1|111111122|222222223|3333|3333|34444444|44455555|
@@ -110,9 +110,9 @@ int writeFile(struct message msg){
 
     aJson.addStringToObject(root, "MAC",  msg.mac);
     //ltoa(msg.lat, buf, 10);
-    aJson.addStringToObject(root, "LAT",  msg.lat);
+    aJson.addNumberToObject(root, "LAT",  msg.lat);
     //ltoa(msg.lon, buf, 10);
-    aJson.addStringToObject(root, "LON",  msg.lon);
+    aJson.addNumberToObject(root, "LON",  msg.lon);
     
     //ltoa(msg.no2, buf, 10);
     //aJson.addStringToObject(root, "NO2",  buf);
@@ -157,51 +157,33 @@ struct message splitMessage(String c_msg){
 
   c_msg.substring(0,12).toCharArray(buf, 13);
   memcpy(s_msg.mac, buf, strlen(buf)+1);
-  //Serial.print(s_msg.mac);
-  //Serial.print("-");
 
   c_msg.substring(13,22).toCharArray(buf, 13);
   //s_msg.lat = float(atol(buf))/100000; //float
-  //s_msg.lat = atol(buf); //Long
-  memcpy(s_msg.lat, buf, strlen(buf)+1); //char*
-  //Serial.print(s_msg.lat);
-  //Serial.print("-");
+  s_msg.lat = atol(buf); //Long
+  //memcpy(s_msg.lat, buf, strlen(buf)+1); //char*
 
   c_msg.substring(22,31).toCharArray(buf, 13);
   //s_msg.lon = float(atol(buf))/100000; //float
-  //s_msg.lon = atol(buf); //long
-  memcpy(s_msg.lon, buf, strlen(buf)+1); //char*
-  //Serial.print(s_msg.lon);
-  //Serial.print("-");
+  s_msg.lon = atol(buf); //long
+  //memcpy(s_msg.lon, buf, strlen(buf)+1); //char*
 
   c_msg.substring(31,35).toCharArray(buf, 13);
   s_msg.hum = atoi(buf);
-  //Serial.print(s_msg.hum);
-  //Serial.print("-");
 
   c_msg.substring(35,39).toCharArray(buf, 13);
   s_msg.tem = atoi(buf);
-  //Serial.print(s_msg.tem);
-  //Serial.print("-");
 
   c_msg.substring(39,47).toCharArray(buf, 13);
   //s_msg.no2 = atol(buf);
   s_msg.no2 = getSensorValue(0,atol(buf));
-  //Serial.print(s_msg.no2);
-  //Serial.print("-");
+
   
   c_msg.substring(47,55).toCharArray(buf, 13);
   //s_msg.co = atol(buf);
   s_msg.co = getSensorValue(1,atol(buf));
-  
-  s_msg.test = atol(buf);
-  //Serial.print("co: ");
-  //Serial.print(s_msg.test);
-  //Serial.print(" : ");
-  //Serial.println(getSensorValue(1,s_msg.test));
-
-  //Serial.println(s_msg.co);
 
   return s_msg; //Everything  OK
 }
+
 
