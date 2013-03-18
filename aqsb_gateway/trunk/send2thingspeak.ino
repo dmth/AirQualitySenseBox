@@ -98,7 +98,7 @@ String msgThingspeak(struct message msg){
     s+= dtostrf((float)msg.lat/(float)100000,9,5,buf);
   s += delim;
   
-  s += "lon=";
+  s += "long=";
     s+= dtostrf((float)msg.lon/(float)100000,9,5,buf);
   
   return s;

@@ -170,7 +170,16 @@ unsigned long crc_string(char *s)
 File file;
 boolean sderror = false;
 
-void setup(){  
+void setup(){
+  //WATCHDOG CLEANUP
+      // Clear the reset bit
+    MCUSR &= ~_BV(WDRF);
+
+    // Disable the WDT
+    WDTCSR |= _BV(WDCE) | _BV(WDE); 
+    WDTCSR = 0;
+  
+  
   Serial.begin(38400);
   
   #if BOARDTYPE==1
