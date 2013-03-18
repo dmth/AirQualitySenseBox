@@ -25,7 +25,6 @@
 #include <Wire.h>
 #include <EggBus.h>
 #include <TinyGPS.h>
-#include <SoftwareSerial.h>
 
 EggBus eggBus;
 
@@ -35,220 +34,89 @@ DHT22 dht(5);
 //#define _GPS_NO_STATS
 TinyGPS gps;
 
-SoftwareSerial nss(6, 7);
 
-unsigned char dtaUart[100];
-unsigned char dtaUartLen = 0;
+uint8_t mac[6];
 
+unsigned long counter = 0;
 
 void setup(){
   RFBEE.init();
   Serial.begin(9600);
   Serial.println("ok");
-  Serial.println(freeRam());
-  //nss.begin(9600);
+  //Serial.println(freeRam());
+
+  //Provide power... 
+  //see:  http://www.seeedstudio.com/wiki/Grove_-_XBee_Carrier#Usage
+  pinMode(16, OUTPUT);
+  digitalWrite(16, LOW);
+  pinMode(17, OUTPUT);
+  digitalWrite(17, LOW);
 }
 
 void loop()
 {
-  uint8_t   egg_bus_address;
-
-
+  
   eggBus.init();
   unsigned long no2;
   unsigned long co;
 
 
-  while(egg_bus_address = eggBus.next()){
-
-//Serial.println(egg_bus_address, HEX);
-//printAddress(eggBus.getSensorAddress()); //MAC
+  while(eggBus.next()){
+  Serial.println("Reading Eggbus!");
+  if (mac[1]+mac[2]+mac[3]+mac[4]+mac[5]+mac[0] == 0) addressToArray(mac, eggBus.getSensorAddress());
 
     uint8_t numSensors = eggBus.getNumSensors();
     for(uint8_t ii = 0; ii < numSensors; ii++){
-
+      Serial.println("Reading Sensor!");
       if (strncmp(eggBus.getSensorType(ii), "CO", 2) == 0) co = eggBus.getSensorValue(ii);
       else if(strncmp(eggBus.getSensorType(ii), "NO2", 3) == 0) no2 = eggBus.getSensorValue(ii);
     }
   }
-/*
-  Serial.print("no2: ");
-  Serial.println(no2);
-  Serial.print("co: ");
-  Serial.println(co);
-*/
-
+   
   long lon=gps.GPS_INVALID_ANGLE, lat = gps.GPS_INVALID_ANGLE;
-  feedgps();
+  feedgps(0); //param is the time in ms how long the serial port shoul be read... 
   gps.get_position(&lat, &lon);
-/*
-  Serial.print("lat: ");
-  Serial.println(lat);
-  Serial.print("lon: ");
-  Serial.println(lon);
 
-*/
-  //DHT22_ERROR_t errorCode;
-  //errorCode = 
   dht.readData();
   short int h = dht.getHumidityInt();
   short int t = dht.getTemperatureCInt();
 
-/*
-  Serial.print("hum: ");
-  Serial.println(h);
-  Serial.print("temp: ");
-  Serial.println(t);
-*/
   /*
-    MSG:
-   |  4 |  4 |    9    | 9       | 8      | 8      |        |
-   |HUM |TEM |   LAT   | LON     | NO2    | CO     | MAC    |
-   |----|----|---------|---------|--------|--------|        |
-   |0000|0000|001111111|111222222|22223333|33333344|44444444|
-   |0123|4567|890123456|789012345|67890123|45678901|23456789|
-              
-    -995  
-     425
-     
+   Message:
+   12          |1|    9    | 9       |4   |  4 | 8      | 8      |1|3
+   MAC         |:|  LAT    | LON     |HUM |TEM | NO2    | CO     |-|Ctr
+   ------------|:|---------|---------|----|----|--------|--------|-|---  
   */
 
-char msg[42];
-/*     
-  int i = 0;
-  //fill the msg
-    if(i >=0 && i<4){
-      //Humidity
-      char hum[10];
-      itoa(h, hum, 10);
-      short unsigned int zeros = 4 - strlen(hum);
-      short unsigned int j = 0;
-      while (j + zeros < 4){
-        if (zeros > 0){
-          msg[i] = '0';
-          zeros--;
-          i++;
-        }else{
-          msg[i+j] = hum[j];
-          j++;
-        }
-      }
-      i = i + j - zeros;
-    }
+ char msg[60];
 
-    if(i >=4 && i<8){
-      //Temperature
-      char temp[10];
-      itoa(t, temp, 10);
-      short unsigned int zeros = 4 - strlen(temp);
-      short unsigned int j = 0;
-      while (j + zeros < 4){
-        if (zeros > 0){
-          msg[i] = '0';
-          zeros--;
-          i++;
-        }else{
-          msg[i+j] = temp[j];
-          j++;
-        }
-      }
-      i = i + j-zeros;
-    }
-    
-    if(i >=8 && i<17){
-      //Latitude
-      char l[10];
-      ltoa(lat, l, 10);
-      
-      int j = 0;
-      while(j < 9){
-        msg[i+j] = l[j];
-        j++;
-      }
-      i = i + j;
-    }
+
+ sprintf(msg, "%02X%02X%02X%02X%02X%02X:%09li%09li%04d%04d%08lu%08lu-%03lu",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5],lat,lon,h,t,no2, co, counter);
    
-    if(i >=17 && i<26){
-      //Longitude
-      char l[10];
-      ltoa(lon, l, 10);
-      int j = 0;
-      while(j < 9){
-        msg[i+j] = l[j];
-        j++;
-      }
-      i = i + j;
-    }
-    
-    if(i >=26 && i<34){
-      //NO2
-      char n[10];
-      ltoa(no2, n, 10);
-      short unsigned int zeros = 8 - strlen(n);
-      short unsigned int j = 0;
-      while(j + zeros < 8){
-        if (zeros > 0){
-          msg[i] = '0';
-          zeros--;
-          i++;
-        }else{
-          msg[i+j] = n[j];
-          j++;
-        }
-      }
-      i = i + j - zeros;
-    }
-    
-    if(i >=34 && i<42){
-      //CO
-      char c[10];
-      ltoa(co, c, 10);
-      short unsigned int zeros = 8 - strlen(c);
-      short unsigned int j = 0;
-      while(j + zeros < 8){
-        if (zeros > 0){
-          msg[i] = '0';
-          zeros--;
-          i++;
-        }else{
-          msg[i+j]=c[j];
-          j++;
-        }
-      }
-      i = i + j - zeros;
-    }
- */   
-    /*
-    if(i = 42) {
-     msg[i] = '\0'; 
-    }
-    */
-
- sprintf(msg, "%04d%04d%09li%09li%08lu%08lu",h,t,lat,lon,no2, co);
- /*
-  for (int i = 0; i < 42; i++)
+  for (int i = 0; i < 59; i++)
     Serial.print(msg[i]);
-  
   Serial.println();
- */ 
-  RFBEE.sendDta(41,(unsigned char*)msg);
+  
+  
+  RFBEE.sendDta(59,(unsigned char*)msg);
+  Serial.println(freeRam());
+  counter++;
+  //Serial.print("Counter: ");Serial.println(counter);
+  delay(500);
+  Serial.println("Loop End");
 }
 
-void feedgps(){
-  for (unsigned long start = millis(); millis() - start < 500;) //Parse NMEA sentences for 500ms
-  {
+void feedgps(unsigned int i){
+  //for (unsigned long start = millis(); millis() - start < i;) //Parse NMEA sentences for 500ms
+  //{
     while (Serial.available())
     {
-      char c = Serial.read();
-      // Serial.write(c);
-      if (gps.encode(c));
-      //return true;
+      if (gps.encode(Serial.read()));
     }
-  }
-  //return false;
+  //}
 }
 
-
+/*
 void printAddress(uint8_t * address){
   for(uint8_t jj = 0; jj < 6; jj++){
     if(address[jj] < 16) Serial.print("0");
@@ -256,6 +124,13 @@ void printAddress(uint8_t * address){
     if(jj != 5 ) Serial.print(":");
   }
   Serial.println();
+}
+*/
+
+void addressToArray(byte mac[], uint8_t * address){
+  for(uint8_t jj = 0; jj < 6; jj++){
+    mac[jj] = address[jj];
+  }
 }
 
 int freeRam() {
