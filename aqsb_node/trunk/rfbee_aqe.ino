@@ -126,9 +126,13 @@ void loop()
   */
   
   long lon=gps.GPS_INVALID_ANGLE, lat = gps.GPS_INVALID_ANGLE;
+  unsigned long fixage;
   feedgps(200); //param is the time in ms how long the serial port shoul be read... 
-  gps.get_position(&lat, &lon);
-  
+  gps.get_position(&lat, &lon, &fixage);
+  if (fixage == gps.GPS_INVALID_AGE){
+    lon=gps.GPS_INVALID_ANGLE;
+    lat = gps.GPS_INVALID_ANGLE;
+  }
   
   eggBus.init();
   
