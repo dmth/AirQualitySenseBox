@@ -1,7 +1,6 @@
 #include <EEPROM.h>
 #include <SPI.h>
 #include <SD.h>
-//#include <aJSON.h> //added support for long
 //Time
 #include <Time.h>
 
