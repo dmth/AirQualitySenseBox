@@ -18,7 +18,8 @@ File file;
 struct message{
   char mac[13], lat[10], lon[10];
   //long lat, lon;
-  unsigned long co, no2;
+  float co, no2;
+  unsigned long test;
   short int hum, tem;
 };
 
@@ -86,11 +87,6 @@ void loop(){
     Serial.println((float)s_msg.tem/10);
     Serial.print("  h: ");
     Serial.println((float)s_msg.hum/10);
-    Serial.print("NO2_ppb: ");
-    Serial.println(getSensorValue(0,s_msg.no2)); // 60-80 ppb
-    Serial.print("CO_ppb: ");
-    Serial.println(getSensorValue(0,s_msg.co)); //wiki: 50 - 200 ppb
-    
     writeFile(s_msg);
   }
 }
@@ -117,10 +113,14 @@ int writeFile(struct message msg){
     aJson.addStringToObject(root, "LAT",  msg.lat);
     //ltoa(msg.lon, buf, 10);
     aJson.addStringToObject(root, "LON",  msg.lon);
-    ltoa(msg.no2, buf, 10);
-    aJson.addStringToObject(root, "NO2",  buf);
-    ltoa(msg.co, buf, 10);
-    aJson.addStringToObject(root, "CO",   buf);
+    
+    //ltoa(msg.no2, buf, 10);
+    //aJson.addStringToObject(root, "NO2",  buf);
+    aJson.addNumberToObject(root, "NO2", msg.no2);
+    
+    //ltoa(msg.co, buf, 10);
+    //aJson.addStringToObject(root, "CO",   buf);
+    aJson.addNumberToObject(root, "CO", msg.co);
     
     aJson.addNumberToObject(root, "TEMP", (float)msg.tem/10);
     aJson.addNumberToObject(root, "RH",   (float)msg.hum/10);
@@ -185,12 +185,21 @@ struct message splitMessage(String c_msg){
   //Serial.print("-");
 
   c_msg.substring(39,47).toCharArray(buf, 13);
-  s_msg.no2 = atol(buf);
+  //s_msg.no2 = atol(buf);
+  s_msg.no2 = getSensorValue(0,atol(buf));
   //Serial.print(s_msg.no2);
   //Serial.print("-");
-
+  
   c_msg.substring(47,55).toCharArray(buf, 13);
-  s_msg.co = atol(buf);
+  //s_msg.co = atol(buf);
+  s_msg.co = getSensorValue(1,atol(buf));
+  
+  s_msg.test = atol(buf);
+  //Serial.print("co: ");
+  //Serial.print(s_msg.test);
+  //Serial.print(" : ");
+  //Serial.println(getSensorValue(1,s_msg.test));
+
   //Serial.println(s_msg.co);
 
   return s_msg; //Everything  OK
