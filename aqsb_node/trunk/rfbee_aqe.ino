@@ -47,7 +47,7 @@ void setup_watchdog(int ii) {
 // set system into sleep state
 // system wakes up when watchdog is timed out
 void system_sleep() {
-  setup_watchdog(8); //sleep for 4 Seconds....
+  setup_watchdog(8); //sleep for 4 Seconds
   
   cbi(ADCSRA,ADEN);  // switch Analog to Digitalconverter OFF
   set_sleep_mode(SLEEP_MODE_PWR_DOWN); // sleep mode is set here
@@ -64,7 +64,6 @@ DHT22 dht(6);
 //#define _GPS_NO_STATS
 TinyGPS gps;
 uint8_t mac[6]; //MAC Address of the AQ-Shield
-char msg[56]; //The message that is send away...
 
 
 #define BEEID 1 //0-254, Address of this RFBee, All Senders have 1 // 0 is Broadcast Address
@@ -89,7 +88,6 @@ void setup(){
  
   RFBEE.init(BEEID, 1); //Modified! This ID, AdressCheck 1=true 2=True+Broadcast
   Serial.begin(9600);
-  Serial.println(".");
   //Provide power... 
   //see:  http://www.seeedstudio.com/wiki/Grove_-_XBee_Carrier#Usage
   //pinMode(16, OUTPUT);
@@ -108,8 +106,11 @@ void loop()
   wdt_enable(WDTO_4S); //enable Watchdog. The System has 4 Seconds to complete the loop. If this can't be achieved, the device restarts....
   if (f_wdt == 1) f_wdt = 0; 
    // do your job... 
-  
+
+  char msg[59]; //The message that is send away...
+ 
   long lon=gps.GPS_INVALID_ANGLE, lat = gps.GPS_INVALID_ANGLE;
+
   unsigned long fixage;
   feedgps(200); //param is the time in ms how long the serial port shoul be read... 
   gps.get_position(&lat, &lon, &fixage);
@@ -133,21 +134,11 @@ void loop()
     }
   }
   
-   /* 
-   mac[0] = 00;
-   mac[1] = 11;
-   mac[2] = 22;
-   mac[3] = 33;
-   mac[4] = 44;
-   mac[5] = 55;
-   co = 12345678;
-   no2 = 87654321;
-*/
-
   dht.readData();
   h += (dht.getHumidityInt() != -995)? dht.getHumidityInt() : h / cycles;
   t += (dht.getTemperatureCInt() != -995)? dht.getTemperatureCInt() : t / cycles;
 
+  unsigned short bat = 000;
 
   if (cycles++ == NUMCYCLES){
     t = t / cycles;
@@ -157,20 +148,22 @@ void loop()
     
     /*
      Message:
-     12          |1|    9    | 9       |4   |  4 | 8      | 8      |  = 55
-     MAC         |:|  LAT    | LON     |HUM |TEM | NO2    | CO     |
-     ------------|:|---------|---------|----|----|--------|--------|
+     12          ||    9    ||9        ||4   ||  4 || 8      || 8      |3  |1 = 58
+     MAC         ||  LAT    ||LON      ||HUM ||TEM || NO2    || CO     |BAT|!
+     ------------||---------||---------||----||----||--------||--------|---|!
      */
-    sprintf(msg, "%02X%02X%02X%02X%02X%02X:%09li%09li%04d%04d%08lu%08lu",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5],lat,lon,h,t,no2, co);
+    sprintf(msg, "%02X%02X%02X%02X%02X%02X%09li%09li%04d%04d%08lu%08lu%03i!",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5],lat,lon,h,t,no2,co,bat);
 
-    RFBEE.sendDta(55,(unsigned char*)msg, TARGETBEE);
+    RFBEE.sendDta(58,(unsigned char*)msg, TARGETBEE); //61 Bytes is maximal length. See datasheet of CC1101 sec. 15.3 
     //Reset
     cycles = 0;
     t = 0;
     h = 0;
     no2 = 0;
     co = 0;
-  }
+  } 
+  //Serial.println(msg);
+  //delay(200);
   
   wdt_disable(); //disable watchdog....
 
@@ -193,12 +186,12 @@ void addressToArray(byte mac[], uint8_t * address){
     mac[jj] = address[jj];
   }
 }
-/*
+
 int freeRam() {
   extern int __heap_start, *__brkval;
   int v;
   return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
 }
-*/
+
 
 
