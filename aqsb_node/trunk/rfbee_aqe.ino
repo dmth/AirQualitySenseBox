@@ -49,12 +49,15 @@ void setup_watchdog(int ii) {
 // set system into sleep state
 // system wakes up when watchdog is timed out
 void system_sleep() {
+  setup_watchdog(9); //sleep for 8 Seconds....
+  
   cbi(ADCSRA,ADEN);  // switch Analog to Digitalconverter OFF
   set_sleep_mode(SLEEP_MODE_PWR_DOWN); // sleep mode is set here
   sleep_enable();
   sleep_mode();                 // System sleeps here
   sleep_disable();              // System continues execution here when watchdog timed out (Or any other interrupt is called, i guess)
   sbi(ADCSRA,ADEN);             // switch Analog to Digitalconverter ON
+  
   wdt_disable();//disable watchdog
 }
 
@@ -73,7 +76,8 @@ char msg[56]; //The message that is send away...
 unsigned long counter = 0;
 char ctr[11]; //This char array can hold the counter...
 
-#define BEEID 16 //0-255
+#define BEEID 1 //0-254
+#define TARGETBEE 254
 
 //#define DEBUG
 
@@ -96,7 +100,10 @@ void setup(){
   //digitalWrite(16, LOW);
   pinMode(17, OUTPUT); // GPS
   digitalWrite(17, LOW);
-
+  
+  //read DHT and delay two seconds.... to prevent DHT_ERROR_TOOQUICK
+  dht.readData();
+  delay(2000);
 }
 
 void loop()
@@ -104,17 +111,31 @@ void loop()
   
   wdt_enable(WDTO_4S); //enable Watchdog. The System has 4 Seconds to complete the loop. If this can't be achieved, the device restarts....
   if (f_wdt == 1) f_wdt = 0; 
- 
-  // do your job... 
+   // do your job... 
   #ifdef DEBUG
     Serial.print("L.S: #");
   #endif
+  
+  
+  //look if somebody send data, this might be necessary to free the input buffer, if not done device stops responding
+  unsigned char rxData1[100];               // data len
+  unsigned char len1;                       // len
+  unsigned char srcAddress1;
+  unsigned char destAddress1;
+  char rssi1;
+  unsigned char lqi1;
+  int result1;
+   if(RFBEE.isDta())
+    {
+        result1=receiveData(rxData1, &len1, &srcAddress1, &destAddress1, (unsigned char *)&rssi1 , &lqi1);
+    }
+  free(rxData1); 
   
   //COUNTER
   counter++;
   //char ctr[11];
   sprintf(ctr, "%010lu", counter);
-  RFBEE.sendDta(10,(unsigned char*)ctr);
+  RFBEE.sendDta(10,(unsigned char*)ctr, TARGETBEE);
   #ifdef DEBUG 
     Serial.print(counter);
     Serial.print(" ms: ");
@@ -202,7 +223,7 @@ void loop()
   Serial.println();
   #endif
   
-  RFBEE.sendDta(55,(unsigned char*)msg);
+  RFBEE.sendDta(55,(unsigned char*)msg, TARGETBEE);
   
   #ifdef DEBUG
     Serial.print("L.E: ");
@@ -213,8 +234,6 @@ void loop()
   
   wdt_disable(); //disable watchdog....
 
-  //Now we need a second watchdog to wake up the device from sleep...
-  setup_watchdog(6);
   system_sleep(); // when we wake up, we’ll return to the top of the loop
 
 }
