@@ -2,7 +2,7 @@
 #include <SPI.h>
 #include <SD.h>
 //#include <aJSON.h> //added support for long
-#include <avr/wdt.h>
+#include <avr/wdt.h> //watchdog to reset the device
 
 //Time
 #include <Time.h>
@@ -214,6 +214,9 @@ void setup(){
 
 void loop(){
   
+  wdt_enable(WDTO_8S); //enable Watchdog. The System has 8 Seconds to complete the loop. If this can't be achieved, the device restarts....
+  //if (f_wdt == 1) f_wdt = 0; 
+  
   boolean newdata = false; //If true, a new message has been received
 
   unsigned int c;
@@ -230,15 +233,16 @@ boolean r = false;
       if (c == DTALEN) newdata = true; //c = 55
     }
   #elif BOARDTYPE==2
-      while (Serial3.available() && c < DTALEN){
+    while (Serial3.available() && c < DTALEN){
       byte k = Serial3.read();
       if (k != '\r' || k != '\n'){
         //Serial.write(k);
         c_msg[c++]= k;
       }
+        
       if (c == DTALEN && k=='!') newdata = true; //c = 55
       r = true;
-      delay(1);
+      //delay(1);
     }
   #endif
    
@@ -312,6 +316,9 @@ boolean r = false;
 
     digitalWrite(RCVLED, LOW);
   }
+  
+ wdt_disable(); //disable watchdog....
+
 }
 
 
