@@ -1,0 +1,20 @@
+This library belong to the AirQualityEgg Project.
+
+It was extended to work with the AirQuality Sensor Shields in Version 1.4!
+
+The crucial method is:
+
+
+
+EggBus.h
+  uint32_t getSensorValueOneDotFour(uint8_t sensorIndex);
+  
+EggBus.cpp
+  /*
+   *1.4 Sensor Shields
+   *returns the sensor value of the index as a 32-bit integer
+  */
+  uint32_t EggBus::getSensorValueOneDotFour(uint8_t sensorIndex){
+    i2cGetValue(currentBusAddress, SENSOR_DATA_BASE_OFFSET + sensorIndex * SENSOR_DATA_ADDRESS_BLOCK_SIZE + SENSOR_TABLE_Y_SCALER_OFFSET, 4);
+    return buf_to_value(buffer);
+  }
