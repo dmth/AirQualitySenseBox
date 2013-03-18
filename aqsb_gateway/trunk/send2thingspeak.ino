@@ -1,5 +1,5 @@
 #ifdef thingspeak
-
+#if BOARDTYPE == 2
 char thingspeakserver[] = "api.thingspeak.com";
 
 // key is a char* , len is the length of that array
@@ -87,11 +87,11 @@ String msgThingspeak(struct message msg){
   s+= delim;
   
   s += "field4=";
-    s += msg.tem;
+    s += dtostrf((float)msg.tem/10,4,1,buf);
   s+= delim;
   
   s += "field5=";
-    s += msg.hum;
+    s += dtostrf((float)msg.hum/10,4,1,buf);
   s += delim;
   
   s += "lat=";
@@ -167,4 +167,5 @@ int sendDataToThingspeak(String smsg, char* key, long feedID) {
   }
 }
 
+#endif //boardtype
 #endif

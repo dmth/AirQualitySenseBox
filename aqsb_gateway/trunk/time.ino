@@ -1,7 +1,3 @@
-
-
-
-
  String timeAsISO(){
   char t[21];
   //t[21] = '\0';
@@ -32,11 +28,10 @@
     return t;
   }
   
-  
-  /*
+/*
     Time-Server Related Stuff
 */
-
+#if BOARDTYPE == 2 
 //Get time from ntp-server
 unsigned long getNtpTime()
 {
@@ -65,7 +60,9 @@ unsigned long getNtpTime()
   }
   return 0;
 }
+#endif
 
+#if BOARDTYPE == 2 
 // send an NTP request to the time server at the given address 
 unsigned long sendNTPpacket(IPAddress& address)
 {
@@ -88,3 +85,4 @@ unsigned long sendNTPpacket(IPAddress& address)
   Udp.write(packetBuffer,NTP_PACKET_SIZE);
   Udp.endPacket(); 
 }
+#endif //Boardtype

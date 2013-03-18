@@ -1,3 +1,52 @@
+#if BOARDTYPE==2
+  void setupNetwork(){
+    Serial << F("Starting Network.\n");
+    //Begin Ethernet, try DHCP first
+    if (Ethernet.begin(mac) == 0) {
+      Serial << F(">>!!>> Failed to configure Ethernet using DHCP\n");
+      // If not possible, configure static ip
+      Ethernet.begin(mac, ip, gateway, subnet); 
+      Serial << F("Using Hardcoded IP\n");
+      // while(true); //old code instead of static IP: do nothing:
+    }
+    else{
+      Serial << F(">>>> My IP address: ");
+      for (byte thisByte = 0; thisByte < 4; thisByte++) {
+	// print the value of each byte of the IP address:
+	Serial.print(Ethernet.localIP()[thisByte], DEC);
+	Serial << F(".");
+      }
+      Serial.println();
+    }
+  }
+#endif
+
+
+void toggleLed(boolean state, int ledpin){
+  if (state){
+    digitalWrite(ledpin, LOW);
+    state = !state;
+  }
+  else{
+    digitalWrite(ledpin, HIGH);
+    state = !state;
+  }
+}
+
+void LedOn(boolean state, int ledpin){
+  if (!state){
+    digitalWrite(ledpin, LOW);
+  }
+  else{
+    digitalWrite(ledpin, HIGH);
+  }
+}
+
+void initLED(int ledpin){
+  pinMode(ledpin, OUTPUT);
+}
+
+
 // Write MSG to the Device's logfile
 int writeFile(char hash[9], String msg){
   if (!SD.exists(hash)){
@@ -29,7 +78,9 @@ int writeFile(char hash[9], String msg){
      ------------||---------||---------||----||----||--------||--------||---||!
      000000000011||111111112||222222222||3333||3333||33444444||44445555||555||5
      012345678901||234567890||123456789||0123||4567||89012345||67890123||456||7
-     
+
+     0004A39FEFFC  999999999  999999999  0860  0899  0003040800000317000!
+
      0003A39FABD3  999999999  999999999  0379  0237  00019350  00058835  000  !
      0004A303D52F  999999999  999999999  0335  0255  00015787  00112697  000  !
 */
@@ -52,7 +103,7 @@ struct message splitMessage(String c_msg){
   s_msg.hum = atoi(buf);
 
   c_msg.substring(34,38).toCharArray(buf, 13);
-  s_msg.tem = atoi(buf);
+  s_msg.tem = atoi(buf) - 1000; //substract 1000 this was added to prevent overflows!
 
   c_msg.substring(38,46).toCharArray(buf, 13);
   s_msg.no2 = getSensorValue(0,atol(buf)); //Interpolation!
@@ -75,7 +126,7 @@ void buildID(char id[20], char mac[13], char* name, int len){
  id[12] = '_';
  id[13] = '-';
  id[14] = '_';
- for(int i=15; (i<15+len & i < 20) ;i++){
+ for(int i=15; ((i<15+len) && (i < 20)) ;i++){
   id[i] =  name[i-15];
  }
 }

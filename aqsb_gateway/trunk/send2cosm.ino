@@ -1,6 +1,6 @@
 
 #ifdef cosm
-
+#if BOARDTYPE == 2
 //cosm
 //#define FEED_ID 102432 // your Cosm feed ID
 char cosmserver[] = "api.cosm.com";
@@ -218,4 +218,5 @@ int sendDataToCosm(String smsg, char* key, long feedID) {
     return 0;
   }
 }
+#endif
 #endif
