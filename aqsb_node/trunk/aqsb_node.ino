@@ -1,10 +1,10 @@
 #include <EEPROM.h>
-#include <RFBeeSendRev.h> //Modified!
-#include <RFBeeCore.h>
+#include <../libraries/RFBee/RFBeeSendRev.h> //Modified to have a better constructor.
+#include <../libraries/RFBee/RFBeeCore.h>
 
 #include <DHT22.h>
 #include <Wire.h>
-#include <EggBus.h> // This library has been extended to fit the 1.4 Shields!
+#include <../libraries/EggBus/EggBus.h> // This library has been extended to fit the 1.4 Shields!
        //See Post: https://groups.google.com/d/msg/airqualityegg/1W1BYTyfhRU/uaRWM8m4w1oJ
 #include <TinyGPS.h>
 
