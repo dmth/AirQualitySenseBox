@@ -15,23 +15,33 @@
 #endif
 
 #if BOARDTYPE==1 //GBOARD
-
   #define SD_CS 10 // !mega | gboard
   #define SS_PIN 10 //!mega | gboard
-  
   #include <SoftwareSerial.h>
   #define rxPin 3
   #define txPin 2
-  
   SoftwareSerial myserial(rxPin,txPin);
-  
 #elif BOARDTYPE==2 //IBOARD PRO
 
   #include <Ethernet.h>
   #include <EthernetUdp.h>
   #include <Flash.h>
   
-  /* "Local" MAC-Adresses Are in the range:
+  
+ #define CONFIGURATION 2 //1 cosm, 2 thingspeak, else sos
+  
+  #if CONFIGURATION == 1
+    #define cosm 1
+    byte mac[] = {0x52, 0xDD, 0xCC, 0xBB, 0xAA, 0x01};
+  #elif CONFIGURATION == 2
+    #define thingspeak 1
+    byte mac[] = {0x52, 0xDD, 0xCC, 0xBB, 0xAA, 0x02};
+  #else
+    #define sos 1
+  #endif
+  
+  
+    /* "Local" MAC-Adresses Are in the range:
     x2-xx-xx-xx-xx-xx
     x6-xx-xx-xx-xx-xx
     xA-xx-xx-xx-xx-xx
@@ -40,8 +50,10 @@
     of course we take sth starting with 52:
     52-DD-CC-BB-AA-XX
   */
+  
   //byte mac[] = {0x52, 0xDD, 0xCC, 0xBB, 0xAA, 0x01};
-  byte mac[] = {0x52, 0xDD, 0xCC, 0xBB, 0xAA, 0x02};
+  //byte mac[] = {0x52, 0xDD, 0xCC, 0xBB, 0xAA, 0x02};
+  
   byte ip[] = { 10, 64, 1, 20 };
   byte gateway[] = {10,64,1,10};
   byte subnet[] = {255,255,255,0};
@@ -63,8 +75,8 @@
 #endif
 
 #define RCVLED A2 //RCV LED
-
 #define DTALEN 58 //Length of a message
+
 
 /* Structure Message:
     When a message is received, it can be splitted into this very structure.
@@ -77,12 +89,6 @@ struct message{
   short int hum, tem;
   short int bat;
 };
-
-
-
-
-#define cosm 1
-//#define sos 1
 
 
 //some prototypes to prevent "foo was not declared in this scope"
@@ -114,6 +120,12 @@ unsigned long sendNTPpacket(IPAddress& address);
 
 #endif
 
+#ifdef thingspeak
+  int retrieveAPIKey(char hash[9], char* key, int len);
+  int retrieveFeedId(char hash[9], long* feedid);
+  int sendDataToThingspeak(String smsg, char* key, long feedID);
+  String msgThingspeak(struct message msg);
+#endif
 
 
 // CRC HASHING
@@ -168,9 +180,9 @@ void setup(){
     myserial.begin(9600); //XBEE Socket
   #elif BOARDTYPE==2
     Serial3.begin(9600);
+    Serial << F("Free Ram: ") << FreeRam() << F("\n");
     
     Serial << F("Starting Network.\n");
-    Serial << F("Free Ram: ") << FreeRam() << F("\n");
       //Begin Ethernet, try DHCP first
       if (Ethernet.begin(mac) == 0) {
         Serial << F(">>!!>> Failed to configure Ethernet using DHCP\n");
@@ -325,6 +337,23 @@ void loop(){
         //Serial.println(feedID);
         
         sendDataToCosm(smsg, key, feedID);
+      #endif
+    
+      #ifdef thingspeak
+        String smsg = msgThingspeak(s_msg);
+  
+        char key[38];
+        long feedID = 0;
+
+        //if (!sderror) writeFile(hash, smsg);
+
+        retrieveAPIKey(hash, key, 38);
+        //Serial.println(key);
+        
+        retrieveFeedId(hash, &feedID);
+        //Serial.println(feedID);
+        
+        sendDataToThingspeak(smsg, key, feedID);
       #endif
     
     Serial.println F("--- --- --- --- ---");

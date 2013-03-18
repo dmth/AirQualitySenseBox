@@ -2,7 +2,7 @@
 #ifdef cosm
 
 //cosm
-#define FEED_ID 102432 // your Cosm feed ID
+//#define FEED_ID 102432 // your Cosm feed ID
 char cosmserver[] = "api.cosm.com";
 
 // key is a char* , len is the length of that array

@@ -127,8 +127,8 @@ float getSensorValue(uint8_t sensorIndex, uint32_t measurement){
       real_table_value_y = y_scaler * yval;
       
       slope = (real_table_value_y - previous_real_table_value_y) / (real_table_value_x - previous_real_table_value_x);
-      Serial.print("Case 2: ");
-      Serial.println(previous_real_table_value_y - slope * (previous_real_table_value_x - independent_variable_value));
+      //Serial.print("Case 2: ");
+      //Serial.println(previous_real_table_value_y - slope * (previous_real_table_value_x - independent_variable_value));
       return previous_real_table_value_y - slope * (previous_real_table_value_x - independent_variable_value);
     }
     
