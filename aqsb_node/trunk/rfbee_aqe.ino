@@ -1,5 +1,5 @@
 #include <EEPROM.h>
-#include <RFBeeSendRev.h>
+#include <RFBeeSendRev.h> //Modified!
 #include <RFBeeCore.h>
 
 #include <DHT22.h>
@@ -71,6 +71,7 @@ char msg[56]; //The message that is send away...
 unsigned long counter = 0;
 char ctr[11]; //This char array can hold the counter...
 
+#define BEEID 16 //0-255
 
 void setup(){
   //sleep
@@ -81,7 +82,7 @@ void setup(){
   cbi( SMCR,SM2 );     // power down mode
   setup_watchdog(6);
 
-  RFBEE.init();
+  RFBEE.init(BEEID); //Modified!
   Serial.begin(9600);
   Serial.println("ok");
 
@@ -107,15 +108,20 @@ void loop()
   //char ctr[11];
   sprintf(ctr, "%010lu", counter);
   RFBEE.sendDta(10,(unsigned char*)ctr);
-  Serial.println(counter);
-
-
+  Serial.print(counter);
+  Serial.print(" ms: ");
+  Serial.println(millis());
+  delay(100); //leave some time to recive data....
+  
   Serial.println("GPS");
   long lon=gps.GPS_INVALID_ANGLE, lat = gps.GPS_INVALID_ANGLE;
   feedgps(100); //param is the time in ms how long the serial port shoul be read... 
   gps.get_position(&lat, &lon);
+  
+  delay(100); //leave some time to recive data....
 
   Serial.println("EB.I");
+  delay(100); //leave some time to recive data....
   eggBus.init();
   unsigned long no2;
   unsigned long co;
@@ -135,6 +141,7 @@ void loop()
   }
 
   Serial.println("DHT.read");
+  delay(100); //leave some time to recive data....
   dht.readData();
   short int h = dht.getHumidityInt();
   short int t = dht.getTemperatureCInt();
@@ -163,7 +170,7 @@ void loop()
   Serial.println();
   
   
-  delay(200); //Serial has to receive data BEFORE systm goes to sleep...
+  delay(100); //Serial has to receive data BEFORE systm goes to sleep...
   system_sleep(); // when we wake up, we’ll return to the top of the loop
 
   //delay(1000);
