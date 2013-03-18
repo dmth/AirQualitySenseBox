@@ -67,8 +67,8 @@ uint8_t mac[6]; //MAC Address of the AQ-Shield
 char msg[56]; //The message that is send away...
 
 
-#define BEEID 0 //0-254, Address of this RFBee, We akk have 0...
-#define TARGETBEE 254 // The Address of the RFBee which should receive the Message
+#define BEEID 1 //0-254, Address of this RFBee, All Senders have 1 // 0 is Broadcast Address
+#define TARGETBEE 0 // The Address of the RFBee which should receive the Message, Broadcast
 
 //Arithmetic Mean of NUMCYCLES measurements is calculated and send away....
 #define NUMCYCLES 15 //15 Cycles followed by a 4 Second break ~> 60seconds
@@ -87,9 +87,9 @@ void setup(){
   sbi( SMCR,SM1 );     // power down mode
   cbi( SMCR,SM2 );     // power down mode
  
-  RFBEE.init(BEEID); //Modified!
+  RFBEE.init(BEEID, 1); //Modified! This ID, AdressCheck 1=true 2=True+Broadcast
   Serial.begin(9600);
-
+  Serial.println(".");
   //Provide power... 
   //see:  http://www.seeedstudio.com/wiki/Grove_-_XBee_Carrier#Usage
   //pinMode(16, OUTPUT);
@@ -110,6 +110,7 @@ void loop()
    // do your job... 
   
   //look if somebody send data, this might be necessary to free the input buffer, if not done device stops responding
+  /*
   unsigned char rxData1[100];               // data len
   unsigned char len1;                       // len
   unsigned char srcAddress1;
@@ -122,7 +123,8 @@ void loop()
         result1=receiveData(rxData1, &len1, &srcAddress1, &destAddress1, (unsigned char *)&rssi1 , &lqi1);
     }
   free(rxData1); 
-
+  */
+  
   long lon=gps.GPS_INVALID_ANGLE, lat = gps.GPS_INVALID_ANGLE;
   feedgps(200); //param is the time in ms how long the serial port shoul be read... 
   gps.get_position(&lat, &lon);
