@@ -1,22 +1,3 @@
-/*
-  Firmware for rfBee
- see www.seeedstudio.com for details and ordering rfBee hardware.
- 
- Copyright (c) 2010 Hans Klunder <hans.klunder (at) bigfoot.com>
- Author: Hans Klunder, based on the original Rfbee v1.0 firmware by Seeedstudio
- Version: July 24, 2010
- 
- This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version.
- 
- This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- See the GNU General Public License for more details.
- 
- You should have received a copy of the GNU General Public License along with this program;
- if not, write to the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- */
-
 #include <EEPROM.h>
 #include <RFBeeSendRev.h>
 #include <RFBeeCore.h>
@@ -25,6 +6,56 @@
 #include <Wire.h>
 #include <EggBus.h>
 #include <TinyGPS.h>
+
+//sleeping
+#include <avr/sleep.h> 
+#include <avr/wdt.h>
+
+#ifndef cbi
+#define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
+#endif
+#ifndef sbi
+#define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
+#endif
+
+
+volatile boolean f_wdt=1;
+
+// Watchdog Interrupt Service / is executed when  watchdog timed out
+ISR(WDT_vect) {
+  f_wdt=1;  // set global flag
+}
+
+//****************************************************************
+// 0=16ms, 1=32ms,2=64ms,3=128ms,4=250ms,5=500ms
+// 6=1 sec,7=2 sec, 8=4 sec, 9= 8sec
+void setup_watchdog(int ii) {
+  byte bb;
+  int ww;
+  if (ii > 9 ) ii=9;
+  bb=ii & 7;
+  if (ii > 7) bb|= (1<<5);
+  bb|= (1<<WDCE);
+  ww=bb;
+  MCUSR &= ~(1<<WDRF);
+  // start timed sequence
+  WDTCSR |= (1<<WDCE) | (1<<WDE);
+  // set new watchdog timeout value
+  WDTCSR = bb;
+  WDTCSR |= _BV(WDIE);
+}
+
+//****************************************************************  
+// set system into the sleep state
+// system wakes up when wtchdog is timed out
+void system_sleep() {
+  cbi(ADCSRA,ADEN);  // switch Analog to Digitalconverter OFF
+  set_sleep_mode(SLEEP_MODE_PWR_DOWN); // sleep mode is set here
+  sleep_enable();
+  sleep_mode();                        // System sleeps here
+  sleep_disable();              // System continues execution here when watchdog timed out
+  sbi(ADCSRA,ADEN);                    // switch Analog to Digitalconverter ON
+}
 
 EggBus eggBus;
 
@@ -36,14 +67,23 @@ TinyGPS gps;
 
 
 uint8_t mac[6];
-
+char msg[56]; //The message that is send away...
 unsigned long counter = 0;
+char ctr[11]; //This char array can hold the counter...
+
 
 void setup(){
+  //sleep
+
+  cbi( SMCR,SE );      // sleep enable, power down mode
+  cbi( SMCR,SM0 );     // power down mode
+  sbi( SMCR,SM1 );     // power down mode
+  cbi( SMCR,SM2 );     // power down mode
+  setup_watchdog(6);
+
   RFBEE.init();
   Serial.begin(9600);
   Serial.println("ok");
-  //Serial.println(freeRam());
 
   //Provide power... 
   //see:  http://www.seeedstudio.com/wiki/Grove_-_XBee_Carrier#Usage
@@ -55,77 +95,100 @@ void setup(){
 
 void loop()
 {
+  //Sleep
+  if (f_wdt==1) // wait for timed out watchdog
+    f_wdt=0;   
+
+  // do your job... 
+  Serial.print("L.S: #");
   
+  //COUNTER
+  counter++;
+  //char ctr[11];
+  sprintf(ctr, "%010lu", counter);
+  RFBEE.sendDta(10,(unsigned char*)ctr);
+  Serial.println(counter);
+
+
+  Serial.println("GPS");
+  long lon=gps.GPS_INVALID_ANGLE, lat = gps.GPS_INVALID_ANGLE;
+  feedgps(100); //param is the time in ms how long the serial port shoul be read... 
+  gps.get_position(&lat, &lon);
+
+  Serial.println("EB.I");
   eggBus.init();
   unsigned long no2;
   unsigned long co;
 
-
+  Serial.println("EB.N");
   while(eggBus.next()){
-  Serial.println("Reading Eggbus!");
-  if (mac[1]+mac[2]+mac[3]+mac[4]+mac[5]+mac[0] == 0) addressToArray(mac, eggBus.getSensorAddress());
+
+    Serial.println("EB.W");
+    if (mac[1]+mac[2]+mac[3]+mac[4]+mac[5]+mac[0] == 0) addressToArray(mac, eggBus.getSensorAddress());
 
     uint8_t numSensors = eggBus.getNumSensors();
     for(uint8_t ii = 0; ii < numSensors; ii++){
-      Serial.println("Reading Sensor!");
+      Serial.println("EB.RS");
       if (strncmp(eggBus.getSensorType(ii), "CO", 2) == 0) co = eggBus.getSensorValue(ii);
       else if(strncmp(eggBus.getSensorType(ii), "NO2", 3) == 0) no2 = eggBus.getSensorValue(ii);
     }
   }
-   
-  long lon=gps.GPS_INVALID_ANGLE, lat = gps.GPS_INVALID_ANGLE;
-  feedgps(0); //param is the time in ms how long the serial port shoul be read... 
-  gps.get_position(&lat, &lon);
 
+  Serial.println("DHT.read");
   dht.readData();
   short int h = dht.getHumidityInt();
   short int t = dht.getTemperatureCInt();
 
   /*
    Message:
-   12          |1|    9    | 9       |4   |  4 | 8      | 8      |1|3
-   MAC         |:|  LAT    | LON     |HUM |TEM | NO2    | CO     |-|Ctr
-   ------------|:|---------|---------|----|----|--------|--------|-|---  
-  */
+   12          |1|    9    | 9       |4   |  4 | 8      | 8      |
+   MAC         |:|  LAT    | LON     |HUM |TEM | NO2    | CO     |
+   ------------|:|---------|---------|----|----|--------|--------|
+   */
 
- char msg[60];
+  //char msg[56];
+  //Serial.println("BuildMsg");
+  sprintf(msg, "%02X%02X%02X%02X%02X%02X:%09li%09li%04d%04d%08lu%08lu",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5],lat,lon,h,t,no2, co);
 
 
- sprintf(msg, "%02X%02X%02X%02X%02X%02X:%09li%09li%04d%04d%08lu%08lu-%03lu",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5],lat,lon,h,t,no2, co, counter);
-   
-  for (int i = 0; i < 59; i++)
-    Serial.print(msg[i]);
+  for (int i = 0; i < 55; i++)
+    Serial.write(msg[i]);
+
+  Serial.println();
+
+  RFBEE.sendDta(55,(unsigned char*)msg);
+
+  Serial.print("L.E: ");
+  Serial.println(freeRam());
   Serial.println();
   
   
-  RFBEE.sendDta(59,(unsigned char*)msg);
-  Serial.println(freeRam());
-  counter++;
-  //Serial.print("Counter: ");Serial.println(counter);
-  delay(500);
-  Serial.println("Loop End");
+  delay(200); //Serial has to receive data BEFORE systm goes to sleep...
+  system_sleep(); // when we wake up, we’ll return to the top of the loop
+
+  //delay(1000);
 }
 
 void feedgps(unsigned int i){
-  //for (unsigned long start = millis(); millis() - start < i;) //Parse NMEA sentences for 500ms
-  //{
+  for (unsigned long start = millis(); millis() - start < i;) //Parse NMEA sentences for 500ms
+  {
     while (Serial.available())
     {
       if (gps.encode(Serial.read()));
     }
-  //}
+  }
 }
 
 /*
 void printAddress(uint8_t * address){
-  for(uint8_t jj = 0; jj < 6; jj++){
-    if(address[jj] < 16) Serial.print("0");
-    Serial.print(address[jj], HEX);
-    if(jj != 5 ) Serial.print(":");
-  }
-  Serial.println();
-}
-*/
+ for(uint8_t jj = 0; jj < 6; jj++){
+ if(address[jj] < 16) Serial.print("0");
+ Serial.print(address[jj], HEX);
+ if(jj != 5 ) Serial.print(":");
+ }
+ Serial.println();
+ }
+ */
 
 void addressToArray(byte mac[], uint8_t * address){
   for(uint8_t jj = 0; jj < 6; jj++){
@@ -142,6 +205,8 @@ int freeRam() {
 /*********************************************************************************************************
  * END FILE
  *********************************************************************************************************/
+
+
 
 
 
