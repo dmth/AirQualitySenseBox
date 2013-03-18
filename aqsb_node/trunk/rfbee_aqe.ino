@@ -71,13 +71,13 @@ uint8_t mac[6]; //MAC Address of the AQ-Shield
 #define TARGETBEE 0 // The Address of the RFBee which should receive the Message, Broadcast
 
 //Arithmetic Mean of NUMCYCLES measurements is calculated and send away....
-#define NUMCYCLES 15 //15 Cycles followed by a 4 Second break ~> 60seconds
-unsigned short cycles;
+#define NUMCYCLES 1 //15 Cycles followed by a 4 Second break ~> 60seconds
+byte cycles = 0;
 
-unsigned long no2;
-unsigned long co;
-int t;
-int h;
+unsigned long no2 = 0;
+unsigned long co = 0;
+int t = 0;
+int h = 0;
 
 
 void setup(){
@@ -103,7 +103,6 @@ void setup(){
 
 void loop()
 {
-  
   wdt_enable(WDTO_4S); //enable Watchdog. The System has 4 Seconds to complete the loop. If this can't be achieved, the device restarts....
   if (f_wdt == 1) f_wdt = 0; 
    // do your job... 
@@ -123,7 +122,7 @@ void loop()
   eggBus.init();
   
   while(eggBus.next()){
-
+    Serial.println("n");
     if (mac[1]+mac[2]+mac[3]+mac[4]+mac[5]+mac[0] == 0) addressToArray(mac, eggBus.getSensorAddress());
 
     uint8_t numSensors = eggBus.getNumSensors();
@@ -136,10 +135,14 @@ void loop()
   }
   
   dht.readData();
-  h += (dht.getHumidityInt() != -995)? dht.getHumidityInt() : h / cycles;
-  t += (dht.getTemperatureCInt() != -995)? dht.getTemperatureCInt() : t / cycles;
+  
+  if (dht.getHumidityInt() != -995)
+    h += dht.getHumidityInt();
+  
+  if (dht.getTemperatureCInt() != -995)
+    t += dht.getTemperatureCInt();
 
-  unsigned short bat = 000;
+  byte bat = 000;
 
   if (cycles++ == NUMCYCLES){
     t = t / cycles;
@@ -147,14 +150,28 @@ void loop()
     no2 = no2 / cycles;
     co = co / cycles;
     
+    
+    char ts = '1';
+    if (t < 0){
+      ts = '0';
+      t = 1000-abs(t); 
+    }
+    //What happens here? 
+      //If the temperature is < 0 sprintf will "overflow" this is problematic as the overflow value (maximum int) is longer than our char-space in the message 
+      //to make this more easy every temperature abov 0 degree will be larger than 1000, every temperature below 0 will be smaller than 1000
+      // 3.6 DEG C will be presented as : 1036
+      // -5,8 DEG C will be presented as : 0942
+      // the receiver just hast to substract 1000 from the received msg to see the correct value.
+
     /*
      Message:
      12          ||    9    ||9        ||4   ||  4 || 8      || 8      |3  |1 = 58
      MAC         ||  LAT    ||LON      ||HUM ||TEM || NO2    || CO     |BAT|!
      ------------||---------||---------||----||----||--------||--------|---|!
      */
-    sprintf(msg, "%02X%02X%02X%02X%02X%02X%09li%09li%04d%04d%08lu%08lu%03i!",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5],lat,lon,h,t,no2,co,bat);
+    sprintf(msg, "%02X%02X%02X%02X%02X%02X%09li%09li%04d%c%03d%08lu%08lu%03i!",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5],lat,lon,h,ts,t,no2,co,bat);
 
+    
     RFBEE.sendDta(58,(unsigned char*)msg, TARGETBEE); //61 Bytes is maximal length. See datasheet of CC1101 sec. 15.3 
     //Reset
     cycles = 0;
