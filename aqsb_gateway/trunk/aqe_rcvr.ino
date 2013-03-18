@@ -2,12 +2,22 @@
 
 #include <SPI.h>
 #include <SD.h>
-#define SD_CS 4 // pin 4 is the SPI select pin for the SDcard
-//#define ETHER_CS 4
-#define SS_PIN 53
 
+//#define SD_CS 4 // mega | iboard pro
+#define SD_CS 10 // !mega | gboard
+
+#define SS_PIN 10 //!mega | gboard
+//#define SS_PIN 53 //mega | iboard pro
+
+#define RCVLED A2 //RCV LED
 
 #include <aJSON.h> //added support for long
+
+
+#include <SoftwareSerial.h>
+#define rxPin 3
+#define txPin 2
+SoftwareSerial myserial(rxPin,txPin);
 
 File file;
 
@@ -24,8 +34,14 @@ struct message{
 };
 
 void setup(){
+  
   Serial.begin(38400);
-  Serial3.begin(38400); //XBEE Socket
+  
+  
+  pinMode(rxPin, INPUT);
+  pinMode(txPin, OUTPUT);
+  //digitalWrite(txPin, HIGH);
+  myserial.begin(9600); //XBEE Socket
   Serial.println("init");
 
   pinMode(SS_PIN, OUTPUT);	// set the SS pin as an output
@@ -35,26 +51,27 @@ void setup(){
 
 
   if (!SD.begin(SD_CS)) {
-    Serial.println("SD: failed!");
+    //Serial.println("SD: failed!");
     return;
   }
-  Serial.println("SD: done.");
+  //Serial.println("SD: done.");
 
+  pinMode(RCVLED, OUTPUT);
   // open the file. note that only one file can be ope
 }
 
 
 void loop(){
-
+  
   boolean newdata = false; //If true, a new message has been received
 
   unsigned int c;
   char c_msg[DTALEN+1];
 
-  while (Serial3.available() && c < DTALEN){
-    char k = Serial3.read();
+  while (myserial.available() && c < DTALEN){
+    byte k = myserial.read();
+    Serial.write(k);
     c_msg[c++]= k;
-    //Serial.write(k);
     if (c == DTALEN) newdata = true; //c = 55
   }
   delay(200);
@@ -67,62 +84,58 @@ void loop(){
    000000000011|1|111111122|222222223|3333|3333|34444444|44455555|
    012345678901|2|345678901|234567890|1234|5678|90123456|78901234|
    */
-  int result;
   if (newdata){
-    
-    Serial.println(c_msg);
+    digitalWrite(RCVLED, HIGH);
+    //Serial.println();
+    //Serial.println(c_msg);
     
     struct message s_msg;
     s_msg = splitMessage(c_msg);
-    Serial.println(s_msg.mac);
-    Serial.print("  lat: ");
-    Serial.println(s_msg.lat);
-    Serial.print("  lon: ");
-    Serial.println(s_msg.lon);
-    Serial.print("  no2: ");
-    Serial.println(s_msg.no2);
-    Serial.print("  co: ");
-    Serial.println(s_msg.co);
-    Serial.print("  t: ");
-    Serial.println((float)s_msg.tem/10);
-    Serial.print("  h: ");
-    Serial.println((float)s_msg.hum/10);
+//    Serial.println(s_msg.mac);
+//    Serial.print("  lat: ");
+//    Serial.println(s_msg.lat);
+//    Serial.print("  lon: ");
+//    Serial.println(s_msg.lon);
+//    Serial.print("  no2: ");
+//    Serial.println(s_msg.no2);
+//    Serial.print("  co: ");
+//    Serial.println(s_msg.co);
+//    Serial.print("  t: ");
+//    Serial.println((float)s_msg.tem/10);
+//    Serial.print("  h: ");
+//    Serial.println((float)s_msg.hum/10);
     writeFile(s_msg);
+    //Serial.println(freeRam());
+    digitalWrite(RCVLED, LOW);
   }
 }
 
 int writeFile(struct message msg){
 
-  char* filename = "msgdata.log";
+  char* filename = "msgdata.txt";
 
   file = SD.open(filename, FILE_WRITE);
-  Serial.print("filewrite to:    ");
-  Serial.println(filename);
-
+  //Serial.print("filewrite to:    ");
+  //Serial.println(filename);
 
   if (file){
-    Serial.println("file!");
-
     char buf[12];
     aJsonObject *root;
 
     root = aJson.createObject();
 
     aJson.addStringToObject(root, "MAC",  msg.mac);
-    //ltoa(msg.lat, buf, 10);
+
     aJson.addNumberToObject(root, "LAT",  msg.lat);
-    //ltoa(msg.lon, buf, 10);
+
     aJson.addNumberToObject(root, "LON",  msg.lon);
     
-    //ltoa(msg.no2, buf, 10);
-    //aJson.addStringToObject(root, "NO2",  buf);
     aJson.addNumberToObject(root, "NO2", msg.no2);
-    
-    //ltoa(msg.co, buf, 10);
-    //aJson.addStringToObject(root, "CO",   buf);
+   
     aJson.addNumberToObject(root, "CO", msg.co);
     
     aJson.addNumberToObject(root, "TEMP", (float)msg.tem/10);
+    
     aJson.addNumberToObject(root, "RH",   (float)msg.hum/10);
 
     char* c = aJson.print(root);
@@ -132,7 +145,7 @@ int writeFile(struct message msg){
     file.write("\n");
     file.close();
     
-    Serial.println(c);
+    //Serial.println(c);
     
     free(c);
     
@@ -145,28 +158,22 @@ int writeFile(struct message msg){
   Split the Message.
  */
 struct message splitMessage(String c_msg){
-  /*
-  for (int i = 0; i < msglength; i++){
-   Serial.write(c_msg[i]); 
-   }*/
+
   struct message s_msg;
 
   //Serial.println(c_msg);
 
   char buf[13];
+  //Serial.println(freeRam());
 
   c_msg.substring(0,12).toCharArray(buf, 13);
   memcpy(s_msg.mac, buf, strlen(buf)+1);
 
   c_msg.substring(13,22).toCharArray(buf, 13);
-  //s_msg.lat = float(atol(buf))/100000; //float
   s_msg.lat = atol(buf); //Long
-  //memcpy(s_msg.lat, buf, strlen(buf)+1); //char*
 
   c_msg.substring(22,31).toCharArray(buf, 13);
-  //s_msg.lon = float(atol(buf))/100000; //float
   s_msg.lon = atol(buf); //long
-  //memcpy(s_msg.lon, buf, strlen(buf)+1); //char*
 
   c_msg.substring(31,35).toCharArray(buf, 13);
   s_msg.hum = atoi(buf);
@@ -175,15 +182,18 @@ struct message splitMessage(String c_msg){
   s_msg.tem = atoi(buf);
 
   c_msg.substring(39,47).toCharArray(buf, 13);
-  //s_msg.no2 = atol(buf);
   s_msg.no2 = getSensorValue(0,atol(buf));
 
   
   c_msg.substring(47,55).toCharArray(buf, 13);
-  //s_msg.co = atol(buf);
   s_msg.co = getSensorValue(1,atol(buf));
-
+  
+  //Serial.println(freeRam());
   return s_msg; //Everything  OK
 }
 
-
+int freeRam() {
+  extern int __heap_start, *__brkval;
+  int v;
+  return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
+}
