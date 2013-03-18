@@ -60,7 +60,7 @@ void system_sleep() {
 
 EggBus eggBus;
 //#define DHT22_NO_FLOAT //prevent floatingpoint-stuff
-DHT22 dht(5);
+DHT22 dht(6);
 //#define _GPS_NO_STATS
 TinyGPS gps;
 uint8_t mac[6]; //MAC Address of the AQ-Shield
