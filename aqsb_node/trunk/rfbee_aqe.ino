@@ -109,22 +109,6 @@ void loop()
   if (f_wdt == 1) f_wdt = 0; 
    // do your job... 
   
-  //look if somebody send data, this might be necessary to free the input buffer, if not done device stops responding
-  /*
-  unsigned char rxData1[100];               // data len
-  unsigned char len1;                       // len
-  unsigned char srcAddress1;
-  unsigned char destAddress1;
-  char rssi1;
-  unsigned char lqi1;
-  int result1;
-   if(RFBEE.isDta())
-    {
-        result1=receiveData(rxData1, &len1, &srcAddress1, &destAddress1, (unsigned char *)&rssi1 , &lqi1);
-    }
-  free(rxData1); 
-  */
-  
   long lon=gps.GPS_INVALID_ANGLE, lat = gps.GPS_INVALID_ANGLE;
   unsigned long fixage;
   feedgps(200); //param is the time in ms how long the serial port shoul be read... 
@@ -161,8 +145,8 @@ void loop()
 */
 
   dht.readData();
-  h += dht.getHumidityInt();
-  t += dht.getTemperatureCInt();
+  h += (dht.getHumidityInt() != -995)? dht.getHumidityInt() : h / cycles;
+  t += (dht.getTemperatureCInt() != -995)? dht.getTemperatureCInt() : t / cycles;
 
 
   if (cycles++ == NUMCYCLES){
