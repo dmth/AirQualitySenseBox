@@ -206,6 +206,15 @@ int sendDataToCosm(String smsg, char* key, long feedID) {
     Serial.println("disconnecting.");
     client.stop();
     
+    resetCounter++;
+    
+    if (resetCounter >=5 ) {
+      Serial.println("restarting network");
+      setupNetwork();
+      resetCounter = 0;
+      LedOn(true, ERRORLED);
+    }
+    
     return 0;
   }
 }
