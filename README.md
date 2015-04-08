@@ -16,5 +16,4 @@ as well as:
 https://wiki.52north.org/bin/view/SensorWeb/AirQualitySenseBox
 
 
-This project is free software.
-
+This project is free software and licensed under  https://www.apache.org/licenses/LICENSE-2.0.html
